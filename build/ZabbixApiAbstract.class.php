@@ -128,6 +128,12 @@ abstract class ZabbixApiAbstract
     private $extraHeaders = '';
 
     /**
+     * @brief   Flag to verify SSL peer.
+     */
+
+    private $verifyPeer = TRUE;
+
+    /**
      * @brief   Class constructor.
      *
      * @param   $apiUrl         API url (e.g. http://FQDN/zabbix/api_jsonrpc.php)
@@ -136,9 +142,10 @@ abstract class ZabbixApiAbstract
      * @param   $httpUser       Username for HTTP basic authorization.
      * @param   $httpPassword   Password for HTTP basic authorization.
      * @param   $authId         Already issued auth (e.g. extracted from cookies)
+     * @param   $verifyPeer     Verify SSL peer.
      */
 
-    public function __construct($apiUrl='', $user='', $password='', $httpUser='', $httpPassword='', $authId='')
+    public function __construct($apiUrl='', $user='', $password='', $httpUser='', $httpPassword='', $authId='', $verifyPeer=TRUE)
     {
         if($apiUrl)
             $this->setApiUrl($apiUrl);
@@ -150,6 +157,8 @@ abstract class ZabbixApiAbstract
             $this->setAuthId($authId);
         elseif($user && $password)
             $this->userLogin(array('user' => $user, 'password' => $password));
+
+        $this->setVerifyPeer($verifyPeer);
     }
 
     /**
@@ -207,6 +216,20 @@ abstract class ZabbixApiAbstract
         else
             $this->extraHeaders = '';
 
+        return $this;
+    }
+
+    /**
+     * @brief   Sets the flag to verify the SSL peer.
+     *
+     * @param   $verify     Flag to verify SSL peer
+     *
+     * @retval  ZabbixApiAbstract
+     */
+
+    public function setVerifyPeer($verify=TRUE)
+    {
+        $this->verifyPeer = (bool) $verify;
         return $this;
     }
 
@@ -305,11 +328,17 @@ abstract class ZabbixApiAbstract
             echo 'API request: '.$this->requestEncoded;
 
         // do request
-        $streamContext = stream_context_create(array('http' => array(
-            'method'  => 'POST',
-            'header'  => 'Content-type: application/json-rpc'."\r\n".$this->extraHeaders,
-            'content' => $this->requestEncoded
-        )));
+        $streamContext = stream_context_create(array(
+            'http' => array(
+                'method'  => 'POST',
+                'header'  => 'Content-type: application/json-rpc'."\r\n".$this->extraHeaders,
+                'content' => $this->requestEncoded
+            ),
+            'ssl' => array(
+                'verify_peer'       => $this->verifyPeer,
+                'verify_peer_name'  => $this->verifyPeer
+            )
+        ));
 
         // get file handler
         $fileHandler = @fopen($this->getApiUrl(), 'rb', false, $streamContext);
